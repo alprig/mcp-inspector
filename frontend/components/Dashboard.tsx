@@ -5,11 +5,28 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { EventList } from "./EventList";
 import { DetailPanel } from "./DetailPanel";
+import { StatsBar } from "./StatsBar";
+import { FilterBar } from "./FilterBar";
+import { Sidebar } from "./Sidebar";
 import type { McpEvent } from "@/types/events";
+
+interface Filters {
+  server: string | null;
+  method: string | null;
+  status: McpEvent["status"] | null;
+}
 
 export function Dashboard() {
   const { events, status, clearEvents } = useWebSocket();
   const [selectedEvent, setSelectedEvent] = useState<McpEvent | null>(null);
+
+  // Filters state
+  const [filters, setFilters] = useState<Filters>({
+    server: null,
+    method: null,
+    status: null,
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleSelectEvent = (event: McpEvent) => {
     setSelectedEvent((prev) => (prev?.id === event.id ? null : event));
@@ -17,14 +34,22 @@ export function Dashboard() {
 
   const handleClosePanel = () => setSelectedEvent(null);
 
-  const successCount = events.filter((e) => e.status === "success").length;
-  const errorCount = events.filter((e) => e.status === "error").length;
-  const pendingCount = events.filter((e) => e.status === "pending").length;
+  // Computed filtered events
+  const filteredEvents = events.filter((e) => {
+    if (filters.server && e.server !== filters.server) return false;
+    if (filters.method && e.method !== filters.method) return false;
+    if (filters.status && e.status !== filters.status) return false;
+    return true;
+  });
+
+  const handleSelectServer = (server: string | null) => {
+    setFilters((prev) => ({ ...prev, server }));
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-950">
+    <div className="h-screen flex flex-col bg-gray-950 overflow-hidden">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-30">
+      <header className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm shrink-0 z-30">
         <div className="px-5 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -49,53 +74,53 @@ export function Dashboard() {
               Real-time MCP debugger
             </span>
           </div>
-          <ConnectionStatus status={status} />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={clearEvents}
+              disabled={events.length === 0}
+              className="text-xs px-3 py-1 rounded bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Clear
+            </button>
+            <ConnectionStatus status={status} />
+          </div>
         </div>
       </header>
 
-      {/* Stats bar */}
-      <div className="border-b border-gray-800 bg-gray-900/50 px-5 py-2 flex items-center gap-6">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-gray-500">Total:</span>
-          <span className="font-semibold text-white">{events.length}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="h-2 w-2 rounded-full bg-green-400 inline-block" />
-          <span className="text-gray-400">
-            {successCount} success
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
-          <span className="text-gray-400">
-            {errorCount} error{errorCount !== 1 ? "s" : ""}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="h-2 w-2 rounded-full bg-yellow-400 inline-block" />
-          <span className="text-gray-400">
-            {pendingCount} pending
-          </span>
-        </div>
-        <div className="ml-auto">
-          <button
-            onClick={clearEvents}
-            disabled={events.length === 0}
-            className="text-xs px-3 py-1 rounded bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Clear
-          </button>
+      {/* Body: sidebar + main column */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar (US-006) */}
+        <Sidebar
+          events={events}
+          selectedServer={filters.server}
+          onSelectServer={handleSelectServer}
+          open={sidebarOpen}
+          onToggle={() => setSidebarOpen((v) => !v)}
+        />
+
+        {/* Main column */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Stats bar (US-005) */}
+          <StatsBar events={events} />
+
+          {/* Filter bar (US-004) */}
+          <FilterBar
+            events={events}
+            filteredCount={filteredEvents.length}
+            filters={filters}
+            onFilterChange={setFilters}
+          />
+
+          {/* Event list */}
+          <main className="flex-1 overflow-auto">
+            <EventList
+              events={filteredEvents}
+              selectedEventId={selectedEvent?.id ?? null}
+              onSelectEvent={handleSelectEvent}
+            />
+          </main>
         </div>
       </div>
-
-      {/* Main content */}
-      <main className="flex-1 overflow-hidden">
-        <EventList
-          events={events}
-          selectedEventId={selectedEvent?.id ?? null}
-          onSelectEvent={handleSelectEvent}
-        />
-      </main>
 
       {/* Detail panel */}
       <DetailPanel event={selectedEvent} onClose={handleClosePanel} />
