@@ -117,21 +117,33 @@ def main() -> None:
         sys.exit(1)
 
 
-def _start() -> None:
-    """Start the proxy on port 4444 and API on port 8000."""
+async def _run() -> None:
+    """Async entry point: start all MCP proxies, then serve the FastAPI app."""
     cfg = load_config()
+    manager = proxy_module.ProxyManager()
+    for name, srv_cfg in cfg.mcp_servers.items():
+        manager.add_proxy(name, srv_cfg)
 
-    print(f"Loaded {len(cfg.mcp_servers)} MCP server(s): {list(cfg.mcp_servers.keys())}")
+    print(f"Loaded {len(cfg.mcp_servers)} MCP server(s)")
     print("Inspector running at http://localhost:3333")
     print("API running at http://localhost:8000")
 
-    # Launch FastAPI (blocking)
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        log_level="info",
-    )
+    # TODO: add TCP listener on port 4444 to forward connections to proxies
+
+    await manager.start_all()
+
+    uvicorn_config = uvicorn.Config("main:app", host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(uvicorn_config)
+
+    try:
+        await server.serve()
+    finally:
+        await manager.stop_all()
+
+
+def _start() -> None:
+    """Start the proxy subprocesses and API server on port 8000."""
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":
