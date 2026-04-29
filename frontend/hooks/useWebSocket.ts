@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { McpEvent, WsConnectionStatus } from "@/types/events";
+import type { McpEvent, WsConnectionStatus, WsMessage } from "@/types/events";
 
 const WS_URL = "ws://localhost:8000/ws";
 const RECONNECT_DELAY_MS = 3000;
@@ -43,11 +43,17 @@ export function useWebSocket(): UseWebSocketReturn {
     ws.onmessage = (event: MessageEvent) => {
       if (!isMountedRef.current) return;
       try {
-        const data = JSON.parse(event.data as string) as McpEvent;
-        setEvents((prev) => {
-          const next = [data, ...prev];
-          return next.length > MAX_EVENTS ? next.slice(0, MAX_EVENTS) : next;
-        });
+        const msg = JSON.parse(event.data as string) as WsMessage;
+        if (msg.type === "event_created" || msg.type === "history") {
+          setEvents((prev) => {
+            const next = [msg.event, ...prev];
+            return next.length > MAX_EVENTS ? next.slice(0, MAX_EVENTS) : next;
+          });
+        } else if (msg.type === "event_updated") {
+          setEvents((prev) =>
+            prev.map((e) => (e.id === msg.event.id ? msg.event : e)),
+          );
+        }
       } catch {
         // ignore malformed messages
       }

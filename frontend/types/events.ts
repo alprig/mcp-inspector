@@ -8,6 +8,12 @@ export interface McpEvent {
   status: "success" | "error" | "pending";
   latency_ms: number | null;
   payload: Record<string, unknown>;
+  request_id: string | null;
+}
+
+export interface WsMessage {
+  type: "event_created" | "event_updated" | "history";
+  event: McpEvent;
 }
 
 export type WsConnectionStatus = "connected" | "disconnected" | "connecting";
