@@ -1,27 +1,31 @@
 # MCP Inspector — Status
 
-## Текущий спринт: Sprint 1 — Foundation
+## Текущий спринт: Sprint 2 — Filters + Stats + Server Config
 
-**Цель:** Базовая архитектура работает end-to-end (прокси + WebSocket + дашборд)
-
-**Дата старта:** 2026-04-28
+**Цель:** Фильтрация, статистика сессии, конфигурация серверов
 
 ---
 
-## Epic 1: Core Proxy + Real-time Dashboard
+## Sprint 1 — Foundation ✅ Done (2026-04-29)
 
-### Backend (GLM)
-- [ ] US-001: Запуск прокси через CLI
-- [ ] US-002-BE: WebSocket endpoint для стриминга событий
+### Epic 1: Core Proxy + Real-time Dashboard
+
+#### Backend (GLM) — PR #7 merged
+- [x] US-001: Запуск прокси через CLI (`mcp-inspector start`)
+- [x] US-002-BE: WebSocket endpoint для стриминга событий
+
+#### Frontend (MiniMax) — PR #6 merged
+- [x] US-002-FE: Real-time лог запросов в дашборде
+- [x] US-003: Детальный просмотр запроса/ответа (slide-in panel)
+
+---
+
+## Sprint 2 — Backlog
 
 ### Frontend (MiniMax)
-- [ ] US-002-FE: Real-time лог запросов в дашборде
-- [ ] US-003: Детальный просмотр запроса/ответа
-
-### Next sprint
-- US-004: Фильтрация
-- US-005: Статистика сессии
-- US-006: Конфигурация серверов (sidebar)
+- [ ] US-004: Фильтрация по серверу / методу / статусу
+- [ ] US-005: Статистика сессии (кол-во запросов, avg latency, error rate)
+- [ ] US-006: Конфигурация серверов (sidebar)
 
 ---
 
@@ -29,10 +33,10 @@
 
 | Task | Агент | Статус |
 |------|-------|--------|
-| US-001 CLI proxy | GLM | Backlog |
-| US-002 WebSocket BE | GLM | Backlog |
-| US-002 Real-time FE | MiniMax | Backlog |
-| US-003 Detail view | MiniMax | Backlog |
+| US-001 CLI proxy | GLM | ✅ Done |
+| US-002 WebSocket BE | GLM | ✅ Done |
+| US-002 Real-time FE | MiniMax | ✅ Done |
+| US-003 Detail view | MiniMax | ✅ Done |
 | US-004 Filters | MiniMax | Backlog |
 | US-005 Stats | MiniMax | Backlog |
 | US-006 Server sidebar | MiniMax | Backlog |
@@ -49,13 +53,13 @@
 
 ---
 
-## Что запущено
+## Как запустить
 
 ```bash
-# Запустить backend
-cd backend && uvicorn main:app --reload --port 8000
+# Backend (proxy + API)
+cd backend && pip install -e . && mcp-inspector start
 
-# Запустить frontend  
+# Frontend
 cd frontend && npm run dev -- --port 3333
 ```
 
