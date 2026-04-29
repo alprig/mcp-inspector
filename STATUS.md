@@ -29,9 +29,16 @@
 
 ---
 
-## Sprint 3 — Backlog
+## Sprint 3 — Done ✅ (2026-04-29)
 
-*Нет запланированных задач. Добавь следующий спринт.*
+### Frontend (MiniMax) — PR #19 merged
+- [x] US-007: Текстовый поиск по событиям (tool/server/method/payload, debounce 150ms)
+- [x] US-008: Копирование payload в clipboard с визуальным feedback
+- [x] US-009: Keyboard navigation (J/K/Enter/Escape//)
+
+### Bug fix #13 — PR #20 + #21 merged
+- [x] Backend: паринг request↔response в одно событие (WsMessage typed protocol)
+- [x] Frontend: useWebSocket обрабатывает event_created / event_updated / history
 
 ---
 
@@ -46,6 +53,10 @@
 | US-004 Filters | MiniMax | ✅ Done |
 | US-005 Stats | MiniMax | ✅ Done |
 | US-006 Server sidebar | MiniMax | ✅ Done |
+| US-007 Text search | MiniMax | ✅ Done |
+| US-008 Copy payload | MiniMax | ✅ Done |
+| US-009 Keyboard nav | MiniMax | ✅ Done |
+| Bug #13 Request pairing | GLM + MiniMax | ✅ Done |
 
 ---
 
