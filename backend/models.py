@@ -19,6 +19,7 @@ class McpEvent(BaseModel):
     status: Literal["success", "error", "pending"]
     latency_ms: float | None = None
     payload: dict
+    replayed: bool = False  # marks events replayed via POST /replay/{event_id}
 
 
 class WsMessage(BaseModel):

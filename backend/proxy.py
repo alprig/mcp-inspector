@@ -234,3 +234,7 @@ class ProxyManager:
     async def stop_all(self) -> None:
         for proxy in self._proxies.values():
             await proxy.stop()
+
+
+# Module-level manager instance — used by endpoints and CLI
+manager: ProxyManager = ProxyManager()
