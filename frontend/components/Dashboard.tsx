@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useKeyboardNav } from "@/hooks/useKeyboardNav";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { EventList } from "./EventList";
 import { DetailPanel } from "./DetailPanel";
@@ -14,37 +15,85 @@ interface Filters {
   server: string | null;
   method: string | null;
   status: McpEvent["status"] | null;
+  searchQuery: string;
 }
 
 export function Dashboard() {
   const { events, status, clearEvents } = useWebSocket();
   const [selectedEvent, setSelectedEvent] = useState<McpEvent | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
 
-  // Filters state
+  // Filters state (US-007: includes committed search query)
   const [filters, setFilters] = useState<Filters>({
     server: null,
     method: null,
     status: null,
+    searchQuery: "",
   });
+
+  // Separate display value for search input to allow debouncing (US-007)
+  const [searchDisplay, setSearchDisplay] = useState("");
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Search input ref for "/" keyboard shortcut (US-009)
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const handleSelectEvent = (event: McpEvent) => {
     setSelectedEvent((prev) => (prev?.id === event.id ? null : event));
   };
 
-  const handleClosePanel = () => setSelectedEvent(null);
+  const handleOpenPanel = (event: McpEvent) => {
+    setSelectedEvent(event);
+    setPanelOpen(true);
+  };
 
-  // Computed filtered events
+  const handleClosePanel = () => {
+    setPanelOpen(false);
+  };
+
+  const handleFilterChange = (newFilters: Filters) => {
+    setFilters(newFilters);
+    // When "Clear filters" resets searchQuery, also reset display
+    if (newFilters.searchQuery === "") {
+      setSearchDisplay("");
+    }
+  };
+
+  // Computed filtered events — applies all filters AND search (US-007)
   const filteredEvents = events.filter((e) => {
     if (filters.server && e.server !== filters.server) return false;
     if (filters.method && e.method !== filters.method) return false;
     if (filters.status && e.status !== filters.status) return false;
+    if (filters.searchQuery) {
+      const q = filters.searchQuery.toLowerCase();
+      const matchesField =
+        (e.tool ?? "").toLowerCase().includes(q) ||
+        e.server.toLowerCase().includes(q) ||
+        e.method.toLowerCase().includes(q);
+      const matchesPayload = JSON.stringify(e.payload).toLowerCase().includes(q);
+      if (!matchesField && !matchesPayload) return false;
+    }
     return true;
   });
 
   const handleSelectServer = (server: string | null) => {
     setFilters((prev) => ({ ...prev, server }));
   };
+
+  // US-009: keyboard navigation
+  useKeyboardNav({
+    events: filteredEvents,
+    selectedId: selectedEvent?.id ?? null,
+    onSelect: (event) => {
+      setSelectedEvent(event);
+    },
+    onOpen: handleOpenPanel,
+    onClose: () => {
+      if (panelOpen) setPanelOpen(false);
+    },
+    searchInputRef,
+  });
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 overflow-hidden">
@@ -103,12 +152,15 @@ export function Dashboard() {
           {/* Stats bar (US-005) */}
           <StatsBar events={events} />
 
-          {/* Filter bar (US-004) */}
+          {/* Filter bar (US-004 + US-007) */}
           <FilterBar
             events={events}
             filteredCount={filteredEvents.length}
             filters={filters}
-            onFilterChange={setFilters}
+            onFilterChange={handleFilterChange}
+            searchDisplay={searchDisplay}
+            onSearchDisplayChange={setSearchDisplay}
+            searchInputRef={searchInputRef}
           />
 
           {/* Event list */}
@@ -122,8 +174,11 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Detail panel */}
-      <DetailPanel event={selectedEvent} onClose={handleClosePanel} />
+      {/* Detail panel (US-008 copy buttons inside) */}
+      <DetailPanel
+        event={panelOpen ? selectedEvent : null}
+        onClose={handleClosePanel}
+      />
     </div>
   );
 }

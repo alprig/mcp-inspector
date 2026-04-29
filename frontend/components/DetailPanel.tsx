@@ -3,6 +3,7 @@
 import { useEffect, useCallback } from "react";
 import type { McpEvent } from "@/types/events";
 import { JsonViewer } from "./JsonViewer";
+import { CopyButton } from "./CopyButton";
 
 interface DetailPanelProps {
   event: McpEvent | null;
@@ -29,6 +30,27 @@ export function DetailPanel({ event, onClose }: DetailPanelProps) {
   }, [handleKeyDown]);
 
   const isOpen = event !== null;
+
+  const payloadJson = event
+    ? JSON.stringify(event.payload, null, 2)
+    : "";
+
+  const metadataJson = event
+    ? JSON.stringify(
+        {
+          id: event.id,
+          method: event.method,
+          direction: event.direction,
+          server: event.server,
+          tool: event.tool,
+          status: event.status,
+          latency_ms: event.latency_ms,
+          timestamp: event.timestamp,
+        },
+        null,
+        2
+      )
+    : "";
 
   return (
     <>
@@ -131,21 +153,27 @@ export function DetailPanel({ event, onClose }: DetailPanelProps) {
                 </section>
               )}
 
-              {/* Request params */}
+              {/* Payload */}
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
-                  Payload
-                </h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                    Payload
+                  </h2>
+                  <CopyButton value={payloadJson} />
+                </div>
                 <div className="bg-gray-800 rounded border border-gray-700 p-3">
                   <JsonViewer data={event.payload} />
                 </div>
               </section>
 
-              {/* Raw event metadata */}
+              {/* Metadata */}
               <section>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
-                  Metadata
-                </h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                    Metadata
+                  </h2>
+                  <CopyButton value={metadataJson} />
+                </div>
                 <div className="bg-gray-800 rounded border border-gray-700 p-3">
                   <JsonViewer
                     data={{
