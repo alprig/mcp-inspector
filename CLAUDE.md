@@ -20,6 +20,23 @@ Claude Code → [Python proxy] → реальный MCP сервер
           Next.js Dashboard :3333
 ```
 
+## GitHub Projects
+
+- **Project number:** 3
+- **Project ID:** `PVT_kwHOBaEKPc4BWF4N`
+- **Status field ID:** `PVTSSF_lAHOBaEKPc4BWF4NzhRc4VI`
+- **Status options:** Todo=`f75ad846` | In Progress=`47fc9ee4` | Done=`98236657`
+
+Переместить Issue в статус (пример — In Progress для item ID):
+```bash
+gh project item-edit --project-id PVT_kwHOBaEKPc4BWF4N --id <ITEM_ID> --field-id PVTSSF_lAHOBaEKPc4BWF4NzhRc4VI --single-select-option-id 47fc9ee4
+```
+
+Получить item ID для issue:
+```bash
+gh project item-list 3 --owner alprig --format json
+```
+
 ## Роли агентов
 - **Я (Claude)** — архитектор: создаю Issues, ревьюю, принимаю решения. Код НЕ пишу.
 - **GLM** — пишет Python backend (proxy, FastAPI, WebSocket)
