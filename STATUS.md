@@ -20,12 +20,18 @@
 
 ---
 
-## Sprint 2 — Backlog
+## Sprint 2 — Done ✅ (2026-04-29)
 
-### Frontend (MiniMax)
-- [ ] US-004: Фильтрация по серверу / методу / статусу
-- [ ] US-005: Статистика сессии (кол-во запросов, avg latency, error rate)
-- [ ] US-006: Конфигурация серверов (sidebar)
+### Frontend (MiniMax) — PR #11 merged
+- [x] US-004: Фильтрация по серверу / методу / статусу
+- [x] US-005: Статистика сессии (кол-во запросов, avg latency, error rate)
+- [x] US-006: Конфигурация серверов (sidebar)
+
+---
+
+## Sprint 3 — Backlog
+
+*Нет запланированных задач. Добавь следующий спринт.*
 
 ---
 
@@ -37,9 +43,9 @@
 | US-002 WebSocket BE | GLM | ✅ Done |
 | US-002 Real-time FE | MiniMax | ✅ Done |
 | US-003 Detail view | MiniMax | ✅ Done |
-| US-004 Filters | MiniMax | Backlog |
-| US-005 Stats | MiniMax | Backlog |
-| US-006 Server sidebar | MiniMax | Backlog |
+| US-004 Filters | MiniMax | ✅ Done |
+| US-005 Stats | MiniMax | ✅ Done |
+| US-006 Server sidebar | MiniMax | ✅ Done |
 
 ---
 
