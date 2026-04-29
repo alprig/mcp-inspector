@@ -1,0 +1,12 @@
+{
+  "name": "mcp-inspector",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "mcp-inspector": "./bin/mcp-inspector.js"
+  },
+  "description": "Real-time debugger for MCP servers",
+  "engines": {
+    "node": ">=18"
+  }
+}

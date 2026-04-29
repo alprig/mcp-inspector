@@ -1,3 +1,7 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)](https://www.python.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-green)](https://nodejs.org/)
+
 # MCP Inspector
 
 Real-time debugger for MCP (Model Context Protocol) servers. Works like Chrome DevTools Network tab — but for MCP.
@@ -17,11 +21,21 @@ Claude Code → [Python proxy :4444] → MCP server
 - **Real-time event log** — every tool call appears instantly via WebSocket push
 - **Stats bar** — total requests, avg latency, error rate
 - **Filter bar** — filter by server, method, status (AND logic)
+- **Full-text search** — search across tool names, servers, and JSON payloads
 - **Server sidebar** — click a server to filter by it
 - **Detail panel** — click any row to inspect full JSON payload with syntax highlighting
 - **Error view** — errors show message + stack trace prominently
+- **Export JSON** — download the current session as a JSON file
 
-## Quick start
+## Quick Start
+
+```bash
+npx mcp-inspector
+```
+
+Opens the dashboard at [http://localhost:3333](http://localhost:3333). Requires Python 3.11+ and Node 18+.
+
+## Manual setup
 
 ### Backend
 

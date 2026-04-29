@@ -81,6 +81,24 @@ export function Dashboard() {
     setFilters((prev) => ({ ...prev, server }));
   };
 
+  // US-015: Export session as JSON
+  const handleExport = () => {
+    const data = {
+      exported_at: new Date().toISOString(),
+      events:
+        filteredEvents.length < events.length ? filteredEvents : events,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mcp-session-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // US-009: keyboard navigation
   useKeyboardNav({
     events: filteredEvents,
@@ -124,6 +142,13 @@ export function Dashboard() {
             </span>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleExport}
+              disabled={events.length === 0}
+              className="text-xs px-3 py-1 rounded bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Export JSON
+            </button>
             <button
               onClick={clearEvents}
               disabled={events.length === 0}
