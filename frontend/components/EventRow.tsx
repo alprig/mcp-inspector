@@ -55,7 +55,10 @@ export function EventRow({ event, isSelected, onClick }: EventRowProps) {
 
       {/* Tool / Method */}
       <td className="py-2.5 px-3 text-xs text-white whitespace-nowrap max-w-[180px] truncate">
-        {event.tool ?? event.method}
+        <span>{event.tool ?? event.method}</span>
+        {event.replayed && (
+          <span className="ml-1.5 text-xs text-indigo-400 font-medium">↺</span>
+        )}
       </td>
 
       {/* Direction */}

@@ -4,6 +4,7 @@ import { useEffect, useCallback } from "react";
 import type { McpEvent } from "@/types/events";
 import { JsonViewer } from "./JsonViewer";
 import { CopyButton } from "./CopyButton";
+import { ReplayButton } from "./ReplayButton";
 
 interface DetailPanelProps {
   event: McpEvent | null;
@@ -85,6 +86,9 @@ export function DetailPanel({ event, onClose }: DetailPanelProps) {
                   >
                     {event.status}
                   </span>
+                  {event.direction === "request" && (
+                    <ReplayButton eventId={event.id} />
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400">
                   <span>{event.server}</span>

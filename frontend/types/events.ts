@@ -9,6 +9,7 @@ export interface McpEvent {
   latency_ms: number | null;
   payload: Record<string, unknown>;
   request_id: string | null;
+  replayed: boolean;
 }
 
 export interface WsMessage {
