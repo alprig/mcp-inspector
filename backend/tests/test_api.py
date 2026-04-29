@@ -6,6 +6,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -300,3 +301,90 @@ async def test_ws_event_updated_message() -> None:
     assert ws_msg2.event.id == event.id
 
     proxy_module.unsubscribe(q)
+
+
+# ---------------------------------------------------------------------------
+# POST /replay/{event_id}
+# ---------------------------------------------------------------------------
+
+
+class TestReplayEndpoint:
+    def test_replay_not_found(self) -> None:
+        """Returns 404 when event_id does not exist in the store."""
+        resp = client.post("/replay/nonexistent-id-000")
+        assert resp.status_code == 404
+        assert "Event not found" in resp.json()["detail"]
+
+    def test_replay_response_event(self) -> None:
+        """Returns 400 when the event is a response (cannot replay responses)."""
+        event = McpEvent(
+            server="srv",
+            method="tools/list",
+            direction="response",
+            status="success",
+            payload={"jsonrpc": "2.0", "id": 1, "result": {}},
+        )
+        _emit_event(event)
+        resp = client.post(f"/replay/{event.id}")
+        assert resp.status_code == 400
+        assert "Can only replay request events" in resp.json()["detail"]
+
+    def test_replay_no_proxy(self) -> None:
+        """Returns 503 when the proxy for the event's server is not running."""
+        event = McpEvent(
+            server="ghost-server",
+            method="tools/list",
+            direction="request",
+            status="pending",
+            payload={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        )
+        _emit_event(event)
+        # No proxy registered for "ghost-server" in module-level manager
+        resp = client.post(f"/replay/{event.id}")
+        assert resp.status_code == 503
+        assert "ghost-server" in resp.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_replay_success(self) -> None:
+        """Returns 200 with ok=True and a new event_id when replay succeeds."""
+        # Create the original request event
+        original = McpEvent(
+            server="mock-server",
+            method="tools/list",
+            direction="request",
+            status="pending",
+            payload={"jsonrpc": "2.0", "id": 42, "method": "tools/list"},
+        )
+        _emit_event(original)
+
+        # Build a mock proxy that is "running" and accepts send_request
+        mock_proxy = MagicMock()
+        mock_proxy.is_running = True
+        mock_proxy.send_request = AsyncMock(side_effect=lambda data: _emit_event(
+            McpEvent(
+                server="mock-server",
+                method="tools/list",
+                direction="request",
+                status="pending",
+                payload={"jsonrpc": "2.0", "id": 43, "method": "tools/list"},
+                replayed=True,
+            )
+        ))
+
+        # Register mock proxy in the module-level manager
+        proxy_module.manager._proxies["mock-server"] = mock_proxy
+
+        try:
+            from httpx import ASGITransport, AsyncClient
+
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+                resp = await ac.post(f"/replay/{original.id}")
+
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["ok"] is True
+            assert "event_id" in body
+            # send_request was called once with the original payload bytes
+            mock_proxy.send_request.assert_called_once()
+        finally:
+            proxy_module.manager._proxies.pop("mock-server", None)

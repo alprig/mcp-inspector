@@ -10,7 +10,7 @@ import asyncio
 import sys
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 import proxy as proxy_module
 from config import load_config
@@ -97,6 +97,36 @@ async def delete_events() -> dict:
     return {"status": "cleared"}
 
 
+@app.post("/replay/{event_id}")
+async def replay_event(event_id: str) -> dict:
+    """Replay a previously captured request event through the same proxy."""
+    # 1. Find the event in the store
+    event = next((e for e in proxy_module.event_store if e.id == event_id), None)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # 2. Only request events can be replayed
+    if event.direction != "request":
+        raise HTTPException(status_code=400, detail="Can only replay request events")
+
+    # 3. Look up the proxy for this server
+    proxy = proxy_module.manager.get_proxy(event.server)
+    if not proxy or not proxy.is_running:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Proxy for server '{event.server}' is not running",
+        )
+
+    # 4. Send the payload as a JSON-RPC request
+    import json as _json
+
+    await proxy.send_request(_json.dumps(event.payload).encode())
+
+    # 5. The new replay event is created inside send_request; return the latest event id
+    new_event_id = list(proxy_module.event_store)[-1].id
+    return {"ok": True, "event_id": new_event_id}
+
+
 # ---------------------------------------------------------------------------
 # CLI entry point  (US-001)
 # ---------------------------------------------------------------------------
@@ -121,9 +151,8 @@ def main() -> None:
 async def _run() -> None:
     """Async entry point: start all MCP proxies, then serve the FastAPI app."""
     cfg = load_config()
-    manager = proxy_module.ProxyManager()
     for name, srv_cfg in cfg.mcp_servers.items():
-        manager.add_proxy(name, srv_cfg)
+        proxy_module.manager.add_proxy(name, srv_cfg)
 
     print(f"Loaded {len(cfg.mcp_servers)} MCP server(s)")
     print("Inspector running at http://localhost:3333")
@@ -131,7 +160,7 @@ async def _run() -> None:
 
     # TODO: add TCP listener on port 4444 to forward connections to proxies
 
-    await manager.start_all()
+    await proxy_module.manager.start_all()
 
     uvicorn_config = uvicorn.Config("main:app", host="0.0.0.0", port=8000, log_level="info")
     server = uvicorn.Server(uvicorn_config)
@@ -139,7 +168,7 @@ async def _run() -> None:
     try:
         await server.serve()
     finally:
-        await manager.stop_all()
+        await proxy_module.manager.stop_all()
 
 
 def _start() -> None:
