@@ -10,7 +10,7 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Deque
 
-from models import McpEvent, McpServerConfig
+from models import McpEvent, McpServerConfig, WsMessage
 
 # Maximum number of events kept in memory
 MAX_EVENTS = 1000
@@ -19,17 +19,20 @@ MAX_EVENTS = 1000
 event_store: Deque[McpEvent] = deque(maxlen=MAX_EVENTS)
 
 # Per-websocket asyncio queues — registered by WebSocket handlers
-_subscriber_queues: list[asyncio.Queue[McpEvent]] = []
+_subscriber_queues: list[asyncio.Queue[WsMessage]] = []
+
+# Mapping from JSON-RPC id → event UUID (for pairing request↔response)
+_pending_requests: dict[str | int, str] = {}
 
 
-def subscribe() -> asyncio.Queue[McpEvent]:
+def subscribe() -> asyncio.Queue[WsMessage]:
     """Register a new subscriber queue; returns the queue."""
-    q: asyncio.Queue[McpEvent] = asyncio.Queue()
+    q: asyncio.Queue[WsMessage] = asyncio.Queue()
     _subscriber_queues.append(q)
     return q
 
 
-def unsubscribe(q: asyncio.Queue[McpEvent]) -> None:
+def unsubscribe(q: asyncio.Queue[WsMessage]) -> None:
     """Remove a subscriber queue."""
     try:
         _subscriber_queues.remove(q)
@@ -38,18 +41,25 @@ def unsubscribe(q: asyncio.Queue[McpEvent]) -> None:
 
 
 def clear_events() -> None:
-    """Clear all stored events."""
+    """Clear all stored events and pending request mappings."""
     event_store.clear()
+    _pending_requests.clear()
 
 
-def _emit_event(event: McpEvent) -> None:
-    """Store event and push it into all subscriber queues."""
-    event_store.append(event)
+def _broadcast(event: McpEvent, msg_type: str) -> None:
+    """Push a WsMessage into all subscriber queues."""
+    ws_msg = WsMessage(type=msg_type, event=event)  # type: ignore[arg-type]
     for q in list(_subscriber_queues):
         try:
-            q.put_nowait(event)
+            q.put_nowait(ws_msg)
         except asyncio.QueueFull:
             pass
+
+
+def _emit_event(event: McpEvent, msg_type: str = "event_created") -> None:
+    """Store event and push it into all subscriber queues."""
+    event_store.append(event)
+    _broadcast(event, msg_type)
 
 
 def _log_event(event: McpEvent) -> None:
@@ -72,7 +82,7 @@ class McpProxy:
         self.server_name = server_name
         self.config = config
         self._process: asyncio.subprocess.Process | None = None
-        # Track pending requests: id → (method, start_time)
+        # Track pending requests: JSON-RPC id → (method, start_time)
         self._pending: dict[str | int, tuple[str, float]] = {}
 
     async def start(self) -> None:
@@ -122,6 +132,9 @@ class McpProxy:
                 if method == "tools/call":
                     tool = (msg.get("params") or {}).get("name")
 
+                # Convert req_id to str for storage in request_id field
+                request_id_str: str | None = str(req_id) if req_id is not None else None
+
                 event = McpEvent(
                     timestamp=datetime.now(timezone.utc),
                     server=self.server_name,
@@ -129,9 +142,13 @@ class McpProxy:
                     method=method,
                     direction="request",
                     status="pending",
+                    request_id=request_id_str,
                     payload=msg,
                 )
-                _emit_event(event)
+                _emit_event(event, "event_created")
+                # Record mapping: JSON-RPC id → event UUID for response pairing
+                if req_id is not None:
+                    _pending_requests[req_id] = event.id
                 _log_event(event)
             except json.JSONDecodeError:
                 pass
@@ -146,7 +163,7 @@ class McpProxy:
         return None
 
     def _handle_response(self, data: bytes) -> None:
-        """Parse and log a JSON-RPC response."""
+        """Parse and log a JSON-RPC response, pairing with the original request event."""
         try:
             msg = json.loads(data)
         except json.JSONDecodeError:
@@ -164,6 +181,20 @@ class McpProxy:
         if "error" in msg:
             status = "error"
 
+        # Try to find and update the existing request event
+        if req_id is not None and req_id in _pending_requests:
+            event_id = _pending_requests.pop(req_id)
+            existing = next((e for e in event_store if e.id == event_id), None)
+            if existing is not None:
+                existing.status = status  # type: ignore[assignment]
+                existing.latency_ms = latency
+                existing.payload = msg
+                existing.direction = "response"
+                _broadcast(existing, "event_updated")
+                _log_event(existing)
+                return
+
+        # Fallback: no matching request found — create a new event
         event = McpEvent(
             timestamp=datetime.now(timezone.utc),
             server=self.server_name,
@@ -174,7 +205,7 @@ class McpProxy:
             latency_ms=latency,
             payload=msg,
         )
-        _emit_event(event)
+        _emit_event(event, "event_created")
         _log_event(event)
 
 

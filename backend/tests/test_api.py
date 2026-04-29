@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import proxy as proxy_module
 from main import app
-from models import McpEvent
+from models import McpEvent, WsMessage
 from proxy import _emit_event, clear_events, event_store
 
 
@@ -99,12 +99,28 @@ class TestGetEvents:
 
         required_fields = {
             "id", "timestamp", "server", "tool", "method",
-            "direction", "status", "latency_ms", "payload",
+            "direction", "status", "latency_ms", "payload", "request_id",
         }
         assert required_fields.issubset(data.keys())
         assert data["server"] == "test-server"
         assert data["tool"] == "my_tool"
         assert data["latency_ms"] == 123.45
+
+    def test_event_has_request_id_field(self) -> None:
+        """GET /events returns events with request_id field."""
+        event = McpEvent(
+            server="srv",
+            method="ping",
+            direction="request",
+            status="pending",
+            payload={},
+            request_id="7",
+        )
+        _emit_event(event)
+        resp = client.get("/events")
+        data = resp.json()[0]
+        assert "request_id" in data
+        assert data["request_id"] == "7"
 
 
 # ---------------------------------------------------------------------------
@@ -143,8 +159,8 @@ class TestDeleteEvents:
 
 
 class TestWebSocketHistory:
-    def test_ws_connect_receives_history(self) -> None:
-        """On connect, client receives up to 100 existing events."""
+    def test_ws_connect_receives_history_as_ws_messages(self) -> None:
+        """On connect, client receives history events wrapped in WsMessage with type='history'."""
         for i in range(5):
             _emit_event(
                 McpEvent(
@@ -162,7 +178,13 @@ class TestWebSocketHistory:
                 raw = ws.receive_text()
                 messages.append(json.loads(raw))
 
-        servers = {m["server"] for m in messages}
+        # Each message must have type="history" and nested event
+        for msg in messages:
+            assert "type" in msg, f"Missing 'type' field in message: {msg}"
+            assert msg["type"] == "history"
+            assert "event" in msg
+
+        servers = {m["event"]["server"] for m in messages}
         assert servers == {f"server-{i}" for i in range(5)}
 
     def test_ws_ping_pong(self) -> None:
@@ -191,6 +213,9 @@ class TestWebSocketHistory:
                 messages.append(json.loads(raw))
 
         assert len(messages) == 100
+        # All messages should have type="history"
+        for msg in messages:
+            assert msg["type"] == "history"
 
     def test_ws_no_history_when_empty(self) -> None:
         """When no events exist, connect succeeds without sending anything."""
@@ -206,17 +231,11 @@ class TestWebSocketHistory:
 
 
 @pytest.mark.asyncio
-async def test_ws_receives_new_event_async() -> None:
-    """New events emitted after connect are broadcast to WebSocket clients."""
+async def test_ws_receives_new_event_as_ws_message() -> None:
+    """New events emitted after connect are broadcast as WsMessage objects."""
     from httpx import ASGITransport, AsyncClient
-    import httpx
 
     clear_events()
-
-    # Use anyio-compatible WebSocket test via the sync client in an async wrapper.
-    # Strategy: subscribe to the queue directly (same as WebSocket handler does),
-    # emit an event, then verify it's in the queue — then separately verify
-    # the REST endpoint also has it.
 
     # Register a queue subscriber the same way WebSocket does
     q = proxy_module.subscribe()
@@ -228,12 +247,14 @@ async def test_ws_receives_new_event_async() -> None:
         status="pending",
         payload={},
     )
-    _emit_event(event)
+    _emit_event(event, "event_created")
 
-    # Queue should receive the event immediately (same thread, put_nowait)
+    # Queue should receive a WsMessage (not a bare McpEvent)
     assert not q.empty()
-    received = q.get_nowait()
-    assert received.server == "live-server"
+    ws_msg = q.get_nowait()
+    assert isinstance(ws_msg, WsMessage)
+    assert ws_msg.type == "event_created"
+    assert ws_msg.event.server == "live-server"
 
     proxy_module.unsubscribe(q)
 
@@ -244,3 +265,38 @@ async def test_ws_receives_new_event_async() -> None:
         data = resp.json()
         assert len(data) == 1
         assert data[0]["server"] == "live-server"
+
+
+@pytest.mark.asyncio
+async def test_ws_event_updated_message() -> None:
+    """event_updated type is broadcast when an event is mutated in-place."""
+    from httpx import ASGITransport, AsyncClient
+
+    clear_events()
+
+    q = proxy_module.subscribe()
+
+    # Emit an initial request event
+    event = McpEvent(
+        server="srv",
+        method="ping",
+        direction="request",
+        status="pending",
+        payload={},
+    )
+    _emit_event(event, "event_created")
+    ws_msg1 = q.get_nowait()
+    assert ws_msg1.type == "event_created"
+
+    # Now broadcast an update for the same event
+    from proxy import _broadcast
+    event.status = "success"  # type: ignore[assignment]
+    event.direction = "response"
+    _broadcast(event, "event_updated")
+
+    ws_msg2 = q.get_nowait()
+    assert isinstance(ws_msg2, WsMessage)
+    assert ws_msg2.type == "event_updated"
+    assert ws_msg2.event.id == event.id
+
+    proxy_module.unsubscribe(q)

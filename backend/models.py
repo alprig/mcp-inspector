@@ -10,6 +10,7 @@ class McpEvent(BaseModel):
     """Represents a single MCP JSON-RPC event captured by the proxy."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    request_id: str | None = None  # JSON-RPC id for request↔response pairing
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     server: str
     tool: str | None = None
@@ -18,6 +19,13 @@ class McpEvent(BaseModel):
     status: Literal["success", "error", "pending"]
     latency_ms: float | None = None
     payload: dict
+
+
+class WsMessage(BaseModel):
+    """WebSocket message with type."""
+
+    type: Literal["event_created", "event_updated", "history"]
+    event: McpEvent
 
 
 class McpServerConfig(BaseModel):
