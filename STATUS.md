@@ -29,6 +29,15 @@
 
 ---
 
+## Sprint 4 — Done ✅ (2026-04-29)
+
+### Frontend + Backend — PR #26, #27, #28 merged
+- [x] US-015: Export session as JSON (кнопка в header)
+- [x] US-023: `npx mcp-inspector` one-command setup + README update
+- [x] US-025: Replay — кнопка в DetailPanel, `POST /replay/{id}`, `↺` badge
+
+---
+
 ## Sprint 3 — Done ✅ (2026-04-29)
 
 ### Frontend (MiniMax) — PR #19 merged
@@ -57,6 +66,9 @@
 | US-008 Copy payload | MiniMax | ✅ Done |
 | US-009 Keyboard nav | MiniMax | ✅ Done |
 | Bug #13 Request pairing | GLM + MiniMax | ✅ Done |
+| US-015 Export JSON | MiniMax | ✅ Done |
+| US-023 npx setup | MiniMax | ✅ Done |
+| US-025 Replay | GLM + MiniMax | ✅ Done |
 
 ---
 
