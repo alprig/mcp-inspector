@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type { McpEvent } from "@/types/events";
 
 type StatusFilter = McpEvent["status"] | null;
@@ -8,13 +9,20 @@ interface Filters {
   server: string | null;
   method: string | null;
   status: StatusFilter;
+  searchQuery: string;
 }
 
 interface FilterBarProps {
   events: McpEvent[];
   filteredCount: number;
   filters: Filters;
+  /** Committed search query (used by filteredEvents logic) */
   onFilterChange: (filters: Filters) => void;
+  /** Display value for the search input (may be ahead of committed query) */
+  searchDisplay: string;
+  /** Called on every keystroke to update the display value */
+  onSearchDisplayChange: (value: string) => void;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 const STATUS_OPTIONS: Array<{ label: string; value: McpEvent["status"] | null }> = [
@@ -36,17 +44,32 @@ export function FilterBar({
   filteredCount,
   filters,
   onFilterChange,
+  searchDisplay,
+  onSearchDisplayChange,
+  searchInputRef,
 }: FilterBarProps) {
   const uniqueServers = Array.from(new Set(events.map((e) => e.server))).sort();
   const uniqueMethods = Array.from(new Set(events.map((e) => e.method))).sort();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = (value: string) => {
+    onSearchDisplayChange(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onFilterChange({ ...filters, searchQuery: value });
+    }, 150);
+  };
 
   const isFiltered =
     filters.server !== null ||
     filters.method !== null ||
-    filters.status !== null;
+    filters.status !== null ||
+    filters.searchQuery !== "";
 
   const handleClear = () => {
-    onFilterChange({ server: null, method: null, status: null });
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    onSearchDisplayChange("");
+    onFilterChange({ server: null, method: null, status: null, searchQuery: "" });
   };
 
   const activeToggleKey = String(filters.status);
@@ -130,6 +153,44 @@ export function FilterBar({
             </button>
           );
         })}
+      </div>
+
+      <div className="w-px h-4 bg-gray-700 hidden sm:block" />
+
+      {/* Search input (US-007) */}
+      <div className="flex items-center gap-1.5 relative">
+        <svg
+          className="w-3.5 h-3.5 text-gray-500 absolute left-2 pointer-events-none"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchDisplay}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Search events… (/)"
+          className="text-xs bg-gray-800 border border-gray-700 text-gray-200 rounded pl-7 pr-6 py-1 w-48 focus:outline-none focus:border-indigo-500 placeholder-gray-600"
+        />
+        {searchDisplay && (
+          <button
+            onClick={() => handleSearchChange("")}
+            className="absolute right-1.5 text-gray-500 hover:text-white transition-colors"
+            aria-label="Clear search"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Spacer */}
