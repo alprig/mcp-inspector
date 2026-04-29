@@ -14,7 +14,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 import proxy as proxy_module
 from config import load_config
-from models import McpEvent
+from models import McpEvent, WsMessage
 
 
 app = FastAPI(title="MCP Inspector", version="0.1.0")
@@ -35,11 +35,12 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint: sends history on connect, then streams live events."""
     await websocket.accept()
 
-    # Send last 100 historical events immediately
+    # Send last 100 historical events immediately as typed messages
     history = list(proxy_module.event_store)[-100:]
     for event in history:
         try:
-            await websocket.send_text(event.model_dump_json())
+            msg = WsMessage(type="history", event=event)
+            await websocket.send_text(msg.model_dump_json())
         except Exception:
             return
 
@@ -51,9 +52,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     # 2. Stream new events from queue to client
     async def send_events() -> None:
         while True:
-            event: McpEvent = await queue.get()
+            ws_msg: WsMessage = await queue.get()
             try:
-                await websocket.send_text(event.model_dump_json())
+                await websocket.send_text(ws_msg.model_dump_json())
             except Exception:
                 break
 
