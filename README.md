@@ -30,10 +30,12 @@ Claude Code → [Python proxy :4444] → MCP server
 ## Quick Start
 
 ```bash
-npx mcp-inspector
+npx github:alprig/mcp-inspector
 ```
 
 Opens the dashboard at [http://localhost:3333](http://localhost:3333). Requires Python 3.11+ and Node 18+.
+
+Dependencies (frontend + backend) are installed automatically on first run.
 
 ## Manual setup
 
