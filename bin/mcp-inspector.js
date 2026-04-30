@@ -92,27 +92,47 @@ async function main() {
     process.exit(1);
   }
 
+  // Check ports before starting
+  for (const port of [8000, 3333]) {
+    try {
+      execSync(`lsof -ti :${port}`, { stdio: 'pipe' });
+      console.error(`\nError: port ${port} is already in use. Stop the process using it and try again.\n`);
+      process.exit(1);
+    } catch {
+      // port is free
+    }
+  }
+
   console.log('\nStarting servers...\n');
 
-  // Start backend
   const nextBin = join(frontendDir, 'node_modules', '.bin', 'next');
+
   const backend = spawn(
     venvPython, ['-m', 'uvicorn', 'main:app', '--port', '8000', '--log-level', 'warning'],
     { stdio: 'inherit', cwd: backendDir }
   );
 
-  // Start frontend
   const frontend = spawn(
     nextBin, ['dev', '--port', '3333'],
     { stdio: 'inherit', cwd: frontendDir }
   );
 
-  setTimeout(() => {
+  // Print URL only after Next.js signals it's ready
+  frontend.stdout?.on('data', (d) => {
+    if (d.toString().includes('Ready') || d.toString().includes('ready')) {
+      console.log('\nMCP Inspector running at http://localhost:3333\n');
+    }
+  });
+
+  // Fallback: print after 5s if stdout was piped away
+  const urlTimer = setTimeout(() => {
     console.log('\nMCP Inspector running at http://localhost:3333\n');
-  }, 2000);
+  }, 5000);
+  urlTimer.unref();
 
   function shutdown() {
     console.log('\nShutting down...');
+    clearTimeout(urlTimer);
     backend.kill('SIGTERM');
     frontend.kill('SIGTERM');
     process.exit(0);
@@ -123,7 +143,7 @@ async function main() {
 
   backend.on('exit', (code) => {
     if (code !== null && code !== 0) {
-      console.error(`Backend exited (${code})`);
+      console.error(`\nBackend crashed (exit ${code}). Check logs above.\n`);
       frontend.kill('SIGTERM');
       process.exit(1);
     }
@@ -131,7 +151,7 @@ async function main() {
 
   frontend.on('exit', (code) => {
     if (code !== null && code !== 0) {
-      console.error(`Frontend exited (${code})`);
+      console.error(`\nFrontend crashed (exit ${code}). Check logs above.\n`);
       backend.kill('SIGTERM');
       process.exit(1);
     }
