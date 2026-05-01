@@ -57,7 +57,32 @@ async function setupFrontend() {
   await run('npm', ['install', '--legacy-peer-deps'], { cwd: frontendDir });
 }
 
+async function runWrap() {
+  // Ensure venv + deps exist (fast no-op if already set up)
+  if (!existsSync(venvPython)) {
+    execSync('python3 -m venv .venv', { cwd: backendDir, stdio: 'pipe' });
+    execSync(
+      `${venvPip} install -q fastapi "uvicorn[standard]" mcp websockets pydantic python-dotenv`,
+      { cwd: backendDir, stdio: 'pipe' }
+    );
+  }
+  // Forward all args after 'wrap' to Python backend (sys.argv[1:] = ['wrap', ...])
+  const wrapArgs = process.argv.slice(2); // ['wrap', '--name', 'x', '--', 'cmd', ...]
+  const proc = spawn(venvPython, ['main.py', ...wrapArgs], {
+    stdio: 'inherit',
+    cwd: backendDir,
+  });
+  proc.on('exit', (code) => process.exit(code ?? 1));
+  proc.on('error', (e) => { process.stderr.write(e.message + '\n'); process.exit(1); });
+}
+
 async function main() {
+  // Fast path: wrap subcommand — Claude Code spawns this as an MCP proxy
+  if (process.argv[2] === 'wrap') {
+    await runWrap();
+    return;
+  }
+
   console.log('\n🔍 MCP Inspector — starting up\n');
 
   // Check Python
