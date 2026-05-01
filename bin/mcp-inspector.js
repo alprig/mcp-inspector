@@ -53,11 +53,7 @@ async function setupBackend() {
 }
 
 async function setupFrontend() {
-  const nextBin = join(frontendDir, 'node_modules', '.bin', 'next');
-  if (!existsSync(nextBin)) {
-    console.log('  Installing frontend dependencies (this takes ~30s the first time)...');
-    await run('npm', ['install', '--legacy-peer-deps', '--silent'], { cwd: frontendDir });
-  }
+  await run('npm', ['install', '--legacy-peer-deps'], { cwd: frontendDir });
 }
 
 async function main() {
