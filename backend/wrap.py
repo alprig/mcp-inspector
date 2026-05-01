@@ -14,10 +14,9 @@ _DEFAULT_API = "http://localhost:8000"
 
 async def _post_ingest(url: str, payload: dict) -> None:
     """Fire-and-forget HTTP POST. Swallows all errors."""
-    import urllib.error
     import urllib.request
 
-    try:
+    def _send() -> None:
         data = json.dumps(payload).encode()
         req = urllib.request.Request(
             url,
@@ -26,6 +25,11 @@ async def _post_ingest(url: str, payload: dict) -> None:
             method="POST",
         )
         urllib.request.urlopen(req, timeout=0.5)
+
+    # run_in_executor so blocking urlopen never stalls the event loop
+    try:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _send)
     except Exception:
         pass
 
