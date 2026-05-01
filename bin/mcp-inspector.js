@@ -2,7 +2,7 @@
 import { spawn, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, rmSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -53,6 +53,7 @@ async function setupBackend() {
 }
 
 async function setupFrontend() {
+  rmSync(join(frontendDir, '.next'), { recursive: true, force: true });
   await run('npm', ['install', '--legacy-peer-deps'], { cwd: frontendDir });
 }
 
