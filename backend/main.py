@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from datetime import datetime
+from typing import Literal as _Literal
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 import proxy as proxy_module
 from config import load_config
@@ -128,6 +131,63 @@ async def replay_event(event_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# POST /ingest  (US-029: wrap command)
+# ---------------------------------------------------------------------------
+
+
+class IngestPayload(BaseModel):
+    id: str | None = None
+    request_id: str | None = None
+    server: str
+    method: str
+    tool: str | None = None
+    direction: _Literal["request", "response"]
+    status: _Literal["success", "error", "pending"]
+    latency_ms: float | None = None
+    payload: dict
+    timestamp: datetime | None = None
+    replayed: bool = False
+
+
+@app.post("/ingest")
+async def ingest_event(body: IngestPayload) -> dict:
+    """Receive an event from a wrap process, store and broadcast it."""
+    from datetime import datetime, timezone as _tz
+    import uuid as _uuid
+
+    if body.direction == "response" and body.request_id:
+        # Try to update existing request event
+        existing = next(
+            (e for e in proxy_module.event_store if e.id == body.request_id),
+            None,
+        )
+        if existing is not None:
+            existing.status = body.status  # type: ignore[assignment]
+            existing.latency_ms = body.latency_ms
+            existing.payload = body.payload
+            existing.direction = "response"
+            proxy_module._broadcast(existing, "event_updated")
+            return {"id": existing.id}
+
+    # Create new event
+    event = McpEvent(
+        id=body.id or str(_uuid.uuid4()),
+        server=body.server,
+        method=body.method,
+        tool=body.tool,
+        direction=body.direction,
+        status=body.status,
+        latency_ms=body.latency_ms,
+        request_id=body.request_id,
+        payload=body.payload,
+        timestamp=body.timestamp or datetime.now(_tz.utc),
+        replayed=body.replayed,
+    )
+    proxy_module._emit_event(event, "event_created")
+    return {"id": event.id}
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point  (US-001)
 # ---------------------------------------------------------------------------
 
@@ -136,13 +196,34 @@ def main() -> None:
     """CLI: `mcp-inspector start` — launches proxy and API server."""
     import argparse
 
+    from wrap import _derive_name, run_wrap
+
     parser = argparse.ArgumentParser(description="MCP Inspector proxy")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("start", help="Start the MCP Inspector proxy")
+
+    wrap_parser = sub.add_parser("wrap", help="Wrap an MCP server for inspection")
+    wrap_parser.add_argument(
+        "--name", default=None, help="Server name (default: derived from command)"
+    )
+    wrap_parser.add_argument(
+        "--api", default="http://localhost:8000", help="Inspector API URL"
+    )
+    wrap_parser.add_argument("cmd", nargs=argparse.REMAINDER)
+
     args = parser.parse_args()
 
     if args.command == "start":
         _start()
+    elif args.command == "wrap":
+        cmd = args.cmd
+        if cmd and cmd[0] == "--":
+            cmd = cmd[1:]
+        if not cmd:
+            print("Error: no command specified after wrap", file=sys.stderr)
+            sys.exit(1)
+        name = args.name or _derive_name(cmd)
+        asyncio.run(run_wrap(name, cmd, api_url=args.api))
     else:
         parser.print_help()
         sys.exit(1)
