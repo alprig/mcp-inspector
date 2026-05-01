@@ -110,7 +110,7 @@ async function main() {
   );
 
   const frontend = spawn(
-    nextBin, ['dev', '--port', '3333'],
+    nextBin, ['dev', '--turbopack', '--port', '3333'],
     { stdio: 'inherit', cwd: frontendDir }
   );
 
