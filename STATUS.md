@@ -1,8 +1,12 @@
 # MCP Inspector — Status
 
-## Текущий спринт: Sprint 2 — Filters + Stats + Server Config
+## Sprint 5 — Done ✅ (2026-05-01)
 
-**Цель:** Фильтрация, статистика сессии, конфигурация серверов
+### Backend — PR #30 merged
+- [x] US-026: `mcp-inspector wrap -- <cmd>` stdio intercept proxy
+- [x] `POST /ingest` endpoint — receives events from wrap, stores + broadcasts via WS
+- [x] Request↔response pairing in wrap (UUID propagation)
+- [x] `urllib.request` + `run_in_executor` — non-blocking HTTP POST
 
 ---
 
@@ -69,6 +73,7 @@
 | US-015 Export JSON | MiniMax | ✅ Done |
 | US-023 npx setup | MiniMax | ✅ Done |
 | US-025 Replay | GLM + MiniMax | ✅ Done |
+| US-026 wrap command | GLM | ✅ Done |
 
 ---
 

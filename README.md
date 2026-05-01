@@ -9,11 +9,13 @@ Real-time debugger for MCP (Model Context Protocol) servers. Works like Chrome D
 Intercepts JSON-RPC traffic between Claude and MCP servers, streams it via WebSocket to a browser dashboard.
 
 ```
-Claude Code → [Python proxy :4444] → MCP server
-                      ↓
-               FastAPI WebSocket :8000
-                      ↓
-               Next.js Dashboard :3333
+Claude Code → [wrap process] → MCP server
+                    ↓
+         POST http://localhost:8000/ingest
+                    ↓
+         FastAPI WebSocket :8000
+                    ↓
+         Next.js Dashboard :3333
 ```
 
 ## Features
@@ -67,6 +69,36 @@ Open [http://localhost:3333](http://localhost:3333)
 | Backend | Python, FastAPI, WebSocket |
 | Transport | stdio subprocess wrapping |
 
+## Connecting to Claude Code
+
+**Step 1** — start the inspector (keep it running):
+
+```bash
+npx github:alprig/mcp-inspector
+```
+
+**Step 2** — wrap your MCP servers in `~/.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "github:alprig/mcp-inspector", "wrap", "--",
+        "npx", "@modelcontextprotocol/server-filesystem", "/Users/you/projects"
+      ]
+    }
+  }
+}
+```
+
+The `wrap` command sits between Claude Code and the real MCP server, logging all JSON-RPC traffic to the dashboard. Use `--name <label>` to override the server name shown in the UI.
+
+**Step 3** — open [http://localhost:3333](http://localhost:3333) and run any Claude Code prompt that uses tools. Requests appear in real-time.
+
+> The inspector must be running on `:8000` before Claude Code starts. If the backend is unreachable, `wrap` passes stdio through silently — tool calls still work, they just won't appear in the dashboard.
+
 ## API
 
 | Endpoint | Description |
@@ -75,6 +107,7 @@ Open [http://localhost:3333](http://localhost:3333)
 | `GET /events?limit=100` | REST — recent events |
 | `DELETE /events` | Clear session history |
 | `GET /health` | Health check |
+| `POST /ingest` | Receive event from a wrap process |
 
 ## Running tests
 
@@ -82,12 +115,4 @@ Open [http://localhost:3333](http://localhost:3333)
 cd backend
 pip install pytest pytest-asyncio httpx
 pytest
-```
-
-## Proxy config
-
-The proxy reads MCP servers from `~/.claude/settings.json` (`mcpServers` block):
-
-```bash
-mcp-inspector start   # starts proxy on :4444 + API on :8000
 ```
