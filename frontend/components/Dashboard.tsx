@@ -193,7 +193,7 @@ export function Dashboard() {
             <EventList
               events={filteredEvents}
               selectedEventId={selectedEvent?.id ?? null}
-              onSelectEvent={handleSelectEvent}
+              onSelectEvent={handleOpenPanel}
             />
           </main>
         </div>
