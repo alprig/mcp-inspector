@@ -84,6 +84,9 @@ async def run_wrap(
 
     # pending[json_rpc_id] = (method, start_monotonic, req_event_id)
     pending: dict[str | int, tuple[str, float, str]] = {}
+    # request_tasks[json_rpc_id] = Task for the request POST — awaited before response POST
+    # so the backend always sees the request before the response (avoids pairing race)
+    request_tasks: dict[str | int, asyncio.Task] = {}
 
     # Connect sys.stdin asynchronously
     loop = asyncio.get_running_loop()
@@ -129,7 +132,9 @@ async def run_wrap(
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "replayed": False,
             }
-            _bg(_post_ingest(ingest_url, event))
+            task = asyncio.create_task(_post_ingest(ingest_url, event))
+            if req_id is not None:
+                request_tasks[req_id] = task
 
     async def handle_stdout() -> None:
         assert proc.stdout is not None
@@ -146,7 +151,7 @@ async def run_wrap(
                 continue
 
             req_id = msg.get("id")
-            method = "unknown"
+            method = msg.get("method", "unknown")  # notifications have method, responses don't
             latency_ms: float | None = None
             request_id: str | None = None
 
@@ -154,6 +159,13 @@ async def run_wrap(
                 method, start, req_event_id = pending.pop(req_id)
                 latency_ms = (time.monotonic() - start) * 1000
                 request_id = req_event_id
+                # Await the request POST so backend stores it before we post the response
+                task = request_tasks.pop(req_id, None)
+                if task is not None:
+                    try:
+                        await task
+                    except Exception:
+                        pass
 
             status = "error" if "error" in msg else "success"
 

@@ -84,7 +84,7 @@ export function EventRow({ event, isSelected, onClick }: EventRowProps) {
 
       {/* Latency */}
       <td className="py-2.5 px-3 text-xs text-gray-400 text-right whitespace-nowrap">
-        {event.latency_ms !== null ? `${event.latency_ms}ms` : "—"}
+        {event.latency_ms !== null ? `${Math.round(event.latency_ms)}ms` : "—"}
       </td>
     </tr>
   );
