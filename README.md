@@ -4,9 +4,23 @@
 
 # MCP Inspector
 
-Real-time debugger for MCP (Model Context Protocol) servers. Works like Chrome DevTools Network tab — but for MCP.
+Real-time debugger for MCP servers. Like Chrome DevTools Network — but for MCP.
 
-Intercepts JSON-RPC traffic between Claude and MCP servers, streams it via WebSocket to a browser dashboard.
+## Quick Start
+
+```bash
+# 1. Start the inspector
+npx github:alprig/mcp-inspector
+
+# 2. Wrap your MCP servers (in a new terminal)
+npx github:alprig/mcp-inspector setup
+
+# 3. Restart Claude Code — traffic appears in the dashboard
+```
+
+Open [http://localhost:3333](http://localhost:3333)
+
+## How it works
 
 ```
 Claude Code → [wrap process] → MCP server
@@ -29,15 +43,9 @@ Claude Code → [wrap process] → MCP server
 - **Error view** — errors show message + stack trace prominently
 - **Export JSON** — download the current session as a JSON file
 
-## Quick Start
+## Supported transports
 
-```bash
-npx github:alprig/mcp-inspector
-```
-
-Opens the dashboard at [http://localhost:3333](http://localhost:3333). Requires Python 3.11+ and Node 18+.
-
-Dependencies (frontend + backend) are installed automatically on first run.
+`stdio ✓` | `HTTP/SSE — coming soon`
 
 ## Manual setup
 
@@ -68,36 +76,6 @@ Open [http://localhost:3333](http://localhost:3333)
 | Frontend | Next.js 15, TypeScript, Tailwind CSS |
 | Backend | Python, FastAPI, WebSocket |
 | Transport | stdio subprocess wrapping |
-
-## Connecting to Claude Code
-
-**Step 1** — start the inspector (keep it running):
-
-```bash
-npx github:alprig/mcp-inspector
-```
-
-**Step 2** — wrap your MCP servers in `~/.claude/settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "github:alprig/mcp-inspector", "wrap", "--",
-        "npx", "@modelcontextprotocol/server-filesystem", "/Users/you/projects"
-      ]
-    }
-  }
-}
-```
-
-The `wrap` command sits between Claude Code and the real MCP server, logging all JSON-RPC traffic to the dashboard. Use `--name <label>` to override the server name shown in the UI.
-
-**Step 3** — open [http://localhost:3333](http://localhost:3333) and run any Claude Code prompt that uses tools. Requests appear in real-time.
-
-> The inspector must be running on `:8000` before Claude Code starts. If the backend is unreachable, `wrap` passes stdio through silently — tool calls still work, they just won't appear in the dashboard.
 
 ## API
 
