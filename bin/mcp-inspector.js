@@ -2,7 +2,8 @@
 import { spawn, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync, rmSync } from 'fs';
+import { existsSync, rmSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
+import os from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -76,10 +77,109 @@ async function runWrap() {
   proc.on('error', (e) => { process.stderr.write(e.message + '\n'); process.exit(1); });
 }
 
+function runSetup(dryRun) {
+  const configPath = join(os.homedir(), '.claude.json');
+  const backupPath = join(os.homedir(), '.claude.json.bak');
+
+  console.log('MCP Inspector Setup');
+  console.log('─'.repeat(19));
+
+  // Read config
+  if (!existsSync(configPath)) {
+    console.error(`Error: ${configPath} not found. Is Claude Code installed?`);
+    process.exit(1);
+  }
+
+  let config;
+  try {
+    config = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (e) {
+    console.error(`Error: Failed to parse ${configPath}: ${e.message}`);
+    process.exit(1);
+  }
+
+  const servers = config.mcpServers;
+  if (!servers || Object.keys(servers).length === 0) {
+    console.log('No MCP servers found.');
+    process.exit(0);
+  }
+
+  // Classify servers
+  const toWrap = [];   // { name, entry }
+  const lines = [];
+
+  for (const [name, entry] of Object.entries(servers)) {
+    const type = entry.type;
+    const isHttp = type === 'http' || type === 'sse';
+    const isStdio = type === 'stdio' || (!type && entry.command);
+    const alreadyWrapped = Array.isArray(entry.args) && entry.args.includes('github:alprig/mcp-inspector');
+
+    if (isHttp) {
+      const label = type === 'sse' ? 'SSE' : 'HTTP';
+      lines.push(`  ─ ${name} (${label}, skipped)`);
+    } else if (!isStdio) {
+      lines.push(`  ─ ${name} (unknown type, skipped)`);
+    } else if (alreadyWrapped) {
+      lines.push(`  ─ ${name} (already wrapped, skipped)`);
+    } else {
+      const wrappedName = `${name}-inspect`;
+      lines.push(`  ✓ ${name} → ${wrappedName} (wrapped)`);
+      toWrap.push({ name, wrappedName, entry });
+    }
+  }
+
+  console.log(`Found ${Object.keys(servers).length} MCP servers:`);
+  for (const line of lines) {
+    console.log(line);
+  }
+  console.log('');
+
+  if (toWrap.length === 0) {
+    console.log('Nothing to do — all stdio servers are already wrapped.');
+    if (dryRun) console.log('[dry-run] No changes would be made.');
+    process.exit(0);
+  }
+
+  if (dryRun) {
+    console.log('[dry-run] No changes written.');
+    process.exit(0);
+  }
+
+  // Backup
+  copyFileSync(configPath, backupPath);
+  console.log(`Backup saved: ~/.claude.json.bak`);
+
+  // Add wrapped entries
+  for (const { wrappedName, entry } of toWrap) {
+    const wrappedEntry = {
+      type: 'stdio',
+      command: 'npx',
+      args: ['--yes', 'github:alprig/mcp-inspector', 'wrap', '--', entry.command, ...(entry.args || [])],
+    };
+    if (entry.env && Object.keys(entry.env).length > 0) {
+      wrappedEntry.env = entry.env;
+    }
+    config.mcpServers[wrappedName] = wrappedEntry;
+  }
+
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
+  console.log(`Config updated: ~/.claude.json`);
+  console.log('');
+  console.log('Restart Claude Code to apply changes.');
+  process.exit(0);
+}
+
 async function main() {
   // Fast path: wrap subcommand — Claude Code spawns this as an MCP proxy
   if (process.argv[2] === 'wrap') {
     await runWrap();
+    return;
+  }
+
+  // Fast path: setup subcommand — wraps stdio servers in ~/.claude.json
+  if (process.argv[2] === 'setup') {
+    const dryRun = process.argv.includes('--dry-run');
+    runSetup(dryRun);
     return;
   }
 
